@@ -149,7 +149,9 @@ imgRefMat = img_matrix(uncomp)
 # First subplot
 figure()
 subplot(121)
-plt.imshow(imgRefMat, hold=True)
+plt.imshow(imgRefMat, interpolation='nearest', hold=True)
+plt.xlim(100, 200)
+plt.ylim(100, 200)
 
 # Compress and decompress RTI
 crti = compress("vase.rti")
@@ -161,10 +163,18 @@ imgOutMat = img_matrix(comp)
 
 # Second subplot
 subplot(122)
-plt.imshow(imgOutMat, hold=True)
-plt.show()
+plt.imshow(imgOutMat, interpolation='nearest', hold=True)
+plt.xlim(100, 200)
+plt.ylim(100, 200)
+# plt.show()
+plt.savefig('out/comparison.png')
 
 # Compute SSIM
 cmd = "dssim/dssim " + uncomp + " " + comp
-print(cmd)
 print("SSIM=", subprocess.check_output(cmd, shell=True))
+# Compute PSNR
+cmd = "compare -metric PSNR " + uncomp + " " + comp + " /dev/null 2>&1"
+print("PSNR=", subprocess.check_output(cmd, shell=True))
+# Compute RMSE
+cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
+print("RMSE=", subprocess.check_output(cmd, shell=True))
