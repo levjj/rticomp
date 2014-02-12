@@ -61,34 +61,40 @@ def compress(rtifile):
     scales = struct.unpack('f'*c_num,fi.read(4*c_num))
     biases = struct.unpack('f'*c_num,fi.read(4*c_num))
     c_data = numpy.zeros((c_num,h,w,ch),dtype=numpy.uint8)
-    for i in range(ch):
-        for y in range(h):
-            for x in range(w):
+    for y in range(h):
+        for x in range(w):
+            for i in range(ch):
                 for c in range(c_num):
                     c_data[c,y,x,i] = struct.unpack('B',fi.read(1))[0]
     fi.close()
-    c_images = [0] * c_num
+    c_images = []
     for i in range(c_num):
         img = Image.new("RGB",(w,h))
         cd = [tuple(c_data[i,y,x]) for y in range(h) for x in range(w)]
-        img.putdata(cd, scales[i], biases[i])
-        c_images[i] = numpy.array(img.convert('YCbCr'))
+        # img.putdata(cd, scales[i], biases[i])
+        img.putdata(cd)
+        c_images.append(numpy.array(img.convert('YCbCr')))
     c_images = numpy.reshape(numpy.array(c_images),(9,h,w,3))
     c_y = c_images.T[0].T
-    c_cr = numpy.average(c_images.T[1].T,0)
-    c_cb = numpy.average(c_images.T[2].T,0)
+    c_cb = numpy.average(c_images.T[1].T,0)
+    c_cr = numpy.average(c_images.T[2].T,0)
+
 
     fo = open("out/vase-comp.crti", 'w')
+    for scale in scales:
+      fo.write(struct.pack('f', scale))
+    for bias in biases:
+      fo.write(struct.pack('f', bias))
     for c_yi in c_y:
         for y in range(h):
             for x in range(w):
                 fo.write(struct.pack('B', c_yi[y,x]))
     for y in range(h):
         for x in range(w):
-            fo.write(struct.pack('B', c_cr[y,x]))
+            fo.write(struct.pack('B', c_cb[y,x]))
     for y in range(h):
         for x in range(w):
-            fo.write(struct.pack('B', c_cb[y,x]))
+            fo.write(struct.pack('B', c_cr[y,x]))
     fo.close()
     return "vase-comp.crti"
 
@@ -96,31 +102,47 @@ def decompress(crtifile):
     print ("Decompressing " + crtifile)
     subprocess.call("cp out/" + crtifile + " data/vase-comp.rti", shell=True)
     fi = open("out/" + crtifile, 'r')
-    c_data = numpy.zeros((9,470,320),dtype=numpy.uint8)
+    scales = struct.unpack('f'*9,fi.read(4*9))
+    biases = struct.unpack('f'*9,fi.read(4*9))
+    c_y = numpy.zeros((9,470,320),dtype=numpy.uint8)
     for c in range(9):
         for y in range(470):
             for x in range(320):
-                c_data[c,y,x] = struct.unpack('B', fi.read(1))[0]
+                c_y[c,y,x] = struct.unpack('B', fi.read(1))[0]
+    c_cb = numpy.zeros((470,320),dtype=numpy.uint8)
+    for y in range(470):
+        for x in range(320):
+            c_cb[y,x] = struct.unpack('B', fi.read(1))[0]
+    c_cr = numpy.zeros((470,320),dtype=numpy.uint8)
+    for y in range(470):
+        for x in range(320):
+            c_cr[y,x] = struct.unpack('B', fi.read(1))[0]
     fi.close()
+    c_images = []
+    for c in range(9):
+        img = Image.new("YCbCr",(320,470))
+        cd = [(c_y[c,y,x],c_cb[y,x],c_cr[y,x]) for y in range(470) for x in range(320)]
+        img.putdata(cd)
+        c_images.append(numpy.array(img.convert('RGB')))
     fo = open("data/vase-comp.rti", 'w')
     fo.write("#HSH1.2\n")
     fo.write("3\n")
     fo.write("320 470 3\n")
     fo.write("9 2 1\n")
-    for i in range(9):
-        fo.write(struct.pack('f', 1.0))
-    for i in range(9):
-        fo.write(struct.pack('f', 0.0))
-    for i in range(3):
-        for y in range(470):
-            for x in range(320):
+    for scale in scales:
+      fo.write(struct.pack('f', scale))
+    for bias in biases:
+      fo.write(struct.pack('f', bias))
+    for y in range(470):
+        for x in range(320):
+            for i in range(3):
                 for c in range(9):
-                    fo.write(struct.pack('B', c_data[c,y,x]))
+                    fo.write(struct.pack('B', c_images[c][y,x,i]))
     fo.close()
     return "vase-comp.rti"
 
 # Render uncompressed image
-uncomp = render("vase.rti", [-75.0, 0.0])
+uncomp = render("vase.rti", [50.0, 50.0])
 imgRefMat = img_matrix(uncomp)
 (w,h) = (imgRefMat.shape[0],imgRefMat.shape[1])
 
@@ -134,7 +156,7 @@ crti = compress("vase.rti")
 ucrti = decompress(crti)
 
 # Render decompressed image
-comp = render(ucrti, [75.0, 0.0])
+comp = render(ucrti, [50.0, 50.0])
 imgOutMat = img_matrix(comp)
 
 # Second subplot
