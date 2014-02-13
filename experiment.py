@@ -101,7 +101,6 @@ def compress(rtifile,alpha,beta):
 
 def decompress(crtifile):
     print ("Decompressing " + crtifile)
-    subprocess.call("cp out/" + crtifile + " data/vase-comp.rti", shell=True)
     fi = open("out/" + crtifile, 'r')
     scales = struct.unpack('f'*9,fi.read(4*9))
     biases = struct.unpack('f'*9,fi.read(4*9))
