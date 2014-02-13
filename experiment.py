@@ -179,11 +179,14 @@ def run(alpha, beta):
     ucrti =  recreate(alpha, beta)
     res = measure(ucrti, 50.0, 50.0, alpha, beta)
     print("Alpha =",alpha,"Beta =", beta)
-    print("SSIM =",res["sim"])
-    print("PSNR =",res["psnr"])
-    print("RMSE =",res["rmse"])
+    print("SSIM =",res["sim"]),
+    print("PSNR =",res["psnr"]),
+    print("RMSE =",res["rmse"]),
     print("Comp. Ratio =",res["comp"])
 
-for alpha in range(20,100,10):
-    for beta in range(20,100,10):
+# for alpha in range(20,100,10):
+#     for beta in range(20,100,10):
+#         run(alpha, beta)
+for alpha in [30,60,90]:
+    for beta in [30,60,90]:
         run(alpha, beta)
