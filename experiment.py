@@ -7,7 +7,7 @@ Created on 11 Feb 2014
 
 # General imports
 from __future__ import print_function
-import os,sys,subprocess,struct
+import os,sys,subprocess,struct,io
 
 # Possible use of matplotlib from http://http://matplotlib.sourceforge.net/
 from pylab import *
@@ -49,7 +49,7 @@ def nextline(f):
         return nextline(f)
     return line.split(" ")
 
-def compress(rtifile):
+def compress(rtifile,alpha,beta):
     print ("Compressing " + rtifile)
     fi = open("data/" + rtifile, 'r')
     if nextline(fi) != ["3\n"]:
@@ -71,7 +71,6 @@ def compress(rtifile):
     for i in range(c_num):
         img = Image.new("RGB",(w,h))
         cd = [tuple(c_data[i,y,x]) for y in range(h) for x in range(w)]
-        # img.putdata(cd, scales[i], biases[i])
         img.putdata(cd)
         c_images.append(numpy.array(img.convert('YCbCr')))
     c_images = numpy.reshape(numpy.array(c_images),(9,h,w,3))
@@ -79,22 +78,25 @@ def compress(rtifile):
     c_cb = numpy.average(c_images.T[1].T,0)
     c_cr = numpy.average(c_images.T[2].T,0)
 
-
     fo = open("out/vase-comp.crti", 'w')
     for scale in scales:
       fo.write(struct.pack('f', scale))
     for bias in biases:
       fo.write(struct.pack('f', bias))
+    c_y = [c for c in c_y]
+    c_y.append(c_cb)
+    c_y.append(c_cr)
+    i = 0
     for c_yi in c_y:
-        for y in range(h):
-            for x in range(w):
-                fo.write(struct.pack('B', c_yi[y,x]))
-    for y in range(h):
-        for x in range(w):
-            fo.write(struct.pack('B', c_cb[y,x]))
-    for y in range(h):
-        for x in range(w):
-            fo.write(struct.pack('B', c_cr[y,x]))
+        i += 1
+        mem = io.BytesIO()
+        q = alpha if i < 11 else beta
+        Image.fromarray(c_yi.astype(numpy.uint8)).save(mem, "JPEG", quality=q)
+        jpegdata = mem.getvalue()
+        mem.close()
+        fo.write(struct.pack('i', len(jpegdata)))
+        for b in jpegdata:
+            fo.write(b)
     fo.close()
     return "vase-comp.crti"
 
@@ -104,24 +106,26 @@ def decompress(crtifile):
     fi = open("out/" + crtifile, 'r')
     scales = struct.unpack('f'*9,fi.read(4*9))
     biases = struct.unpack('f'*9,fi.read(4*9))
-    c_y = numpy.zeros((9,470,320),dtype=numpy.uint8)
-    for c in range(9):
-        for y in range(470):
-            for x in range(320):
-                c_y[c,y,x] = struct.unpack('B', fi.read(1))[0]
-    c_cb = numpy.zeros((470,320),dtype=numpy.uint8)
-    for y in range(470):
-        for x in range(320):
-            c_cb[y,x] = struct.unpack('B', fi.read(1))[0]
-    c_cr = numpy.zeros((470,320),dtype=numpy.uint8)
-    for y in range(470):
-        for x in range(320):
-            c_cr[y,x] = struct.unpack('B', fi.read(1))[0]
+    c_y = [0] * 9
+    c_cb = []
+    c_cr = []
+    for i in range(11):
+        size = struct.unpack('i', fi.read(4))[0]
+        mem = io.BytesIO(fi.read(size))
+        jpeg = Image.open(mem)
+        c = numpy.reshape(numpy.array(jpeg),(470,320)).astype(numpy.uint8)
+        mem.close()
+        if i == 9:
+          c_cb = c
+        elif i == 10:
+          c_cr = c
+        else:
+          c_y[i] = c
     fi.close()
     c_images = []
     for c in range(9):
         img = Image.new("YCbCr",(320,470))
-        cd = [(c_y[c,y,x],c_cb[y,x],c_cr[y,x]) for y in range(470) for x in range(320)]
+        cd = [(c_y[c][y,x],c_cb[y,x],c_cr[y,x]) for y in range(470) for x in range(320)]
         img.putdata(cd)
         c_images.append(numpy.array(img.convert('RGB')))
     fo = open("data/vase-comp.rti", 'w')
@@ -154,7 +158,7 @@ plt.xlim(100, 200)
 plt.ylim(100, 200)
 
 # Compress and decompress RTI
-crti = compress("vase.rti")
+crti = compress("vase.rti",30,30)
 ucrti = decompress(crti)
 
 # Render decompressed image
@@ -178,3 +182,8 @@ print("PSNR=", subprocess.check_output(cmd, shell=True))
 # Compute RMSE
 cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
 print("RMSE=", subprocess.check_output(cmd, shell=True))
+o_size = os.path.getsize("data/vase.rti")
+c_size = os.path.getsize("out/vase-comp.crti")
+print("Original size= ", o_size)
+print("Compressed size= ", c_size)
+print("Ratio= 1 : ", (o_size / c_size))
