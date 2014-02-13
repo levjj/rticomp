@@ -2,7 +2,6 @@
 File compress.py
 Created on 11 Feb 2014
 @author: Christopher Schuster, cschuste@ucsc.edu
-@author: Antoine Vacavant, ISIT lab, antoine.vacavant_AT_iut.u-clermont1.fr, http://isit.u-clermont1.fr/~anvacava
 '''
 
 # General imports
@@ -90,7 +89,7 @@ def compress(rtifile,alpha,beta):
     for c_yi in c_y:
         i += 1
         mem = io.BytesIO()
-        q = alpha if i < 11 else beta
+        q = alpha if i < 10 else beta
         Image.fromarray(c_yi.astype(numpy.uint8)).save(mem, "JPEG", quality=q)
         jpegdata = mem.getvalue()
         mem.close()
@@ -145,45 +144,46 @@ def decompress(crtifile):
     fo.close()
     return "vase-comp.rti"
 
-# Render uncompressed image
-uncomp = render("vase.rti", [50.0, 50.0])
-imgRefMat = img_matrix(uncomp)
-(w,h) = (imgRefMat.shape[0],imgRefMat.shape[1])
+def recreate(alpha, beta):
+    crti = compress("vase.rti",30,30)
+    return decompress(crti)
 
-# First subplot
-figure()
-subplot(121)
-plt.imshow(imgRefMat, interpolation='nearest', hold=True)
-plt.xlim(100, 200)
-plt.ylim(100, 200)
+def ploti(img, alpha, beta):
+    imgOutMat = img_matrix(img)
+    plt.imshow(imgOutMat, interpolation='nearest', hold=True)
+    plt.xticks([])
+    plt.yticks([])
+    plt.xlim(100, 200)
+    plt.ylim(100, 200)
+    # plt.show()
+    fn = 'out/c_' + str(int(alpha)) + '_' + str(int(beta)) + '.png'
+    plt.savefig(fn, dpi=80,bbox_inches='tight')
 
-# Compress and decompress RTI
-crti = compress("vase.rti",30,30)
-ucrti = decompress(crti)
+def measure(ucrti, lightx, lighty, alpha, beta):
+    uncomp = render('vase.rti', [lightx, lighty])
+    comp = render(ucrti, [lightx, lighty])
+    ploti(comp, alpha, beta)
+    res = {}
+    cmd = "dssim/dssim " + uncomp + " " + comp
+    res["sim"] = subprocess.check_output(cmd, shell=True)
+    cmd = "compare -metric PSNR " + uncomp + " " + comp + " /dev/null 2>&1"
+    res["psnr"] = subprocess.check_output(cmd, shell=True)
+    cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
+    res["rmse"] = subprocess.check_output(cmd, shell=True)
+    res["osize"] = os.path.getsize("data/vase.rti")
+    res["csize"] = os.path.getsize("out/vase-comp.crti")
+    res["comp"] = (res["osize"] + 0.0) / res["csize"]
+    return res
 
-# Render decompressed image
-comp = render(ucrti, [50.0, 50.0])
-imgOutMat = img_matrix(comp)
+def run(alpha, beta):
+    ucrti =  recreate(alpha, beta)
+    res = measure(ucrti, 50.0, 50.0, alpha, beta)
+    print("Alpha =",alpha,"Beta =", beta)
+    print("SSIM =",res["sim"])
+    print("PSNR =",res["psnr"])
+    print("RMSE =",res["rmse"])
+    print("Comp. Ratio =",res["comp"])
 
-# Second subplot
-subplot(122)
-plt.imshow(imgOutMat, interpolation='nearest', hold=True)
-plt.xlim(100, 200)
-plt.ylim(100, 200)
-# plt.show()
-plt.savefig('out/comparison.png')
-
-# Compute SSIM
-cmd = "dssim/dssim " + uncomp + " " + comp
-print("SSIM=", subprocess.check_output(cmd, shell=True))
-# Compute PSNR
-cmd = "compare -metric PSNR " + uncomp + " " + comp + " /dev/null 2>&1"
-print("PSNR=", subprocess.check_output(cmd, shell=True))
-# Compute RMSE
-cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
-print("RMSE=", subprocess.check_output(cmd, shell=True))
-o_size = os.path.getsize("data/vase.rti")
-c_size = os.path.getsize("out/vase-comp.crti")
-print("Original size= ", o_size)
-print("Compressed size= ", c_size)
-print("Ratio= 1 : ", (o_size / c_size))
+for alpha in range(20,100,10):
+    for beta in range(20,100,10):
+        run(alpha, beta)
