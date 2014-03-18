@@ -36,7 +36,7 @@ def render(rti, light):
     outp = os.path.dirname(__file__) + "/../out/" + rti + ".png"
     cmd = "node " + script + " -i " + inp + " -o " + outp + \
           " --lx=" + str(light[0]) + " --ly=" + str(light[1])
-    print(cmd)
+    # print(cmd)
     subprocess.call(cmd, shell=True)
     return outp
 
@@ -49,7 +49,7 @@ def nextline(f):
     return line.split(" ")
 
 def compress(rtifile,alpha,beta):
-    print ("Compressing " + rtifile)
+    # print ("Compressing " + rtifile)
     fi = open("data/" + rtifile, 'r')
     if nextline(fi) != ["3\n"]:
         raise Exception("Wrong file")
@@ -100,7 +100,7 @@ def compress(rtifile,alpha,beta):
     return "vase-comp.crti"
 
 def decompress(crtifile):
-    print ("Decompressing " + crtifile)
+    # print ("Decompressing " + crtifile)
     fi = open("out/" + crtifile, 'r')
     scales = struct.unpack('f'*9,fi.read(4*9))
     biases = struct.unpack('f'*9,fi.read(4*9))
@@ -160,7 +160,7 @@ def measure(ucrti, lightx, lighty, alpha, beta):
     ploti(comp, alpha, beta)
     res = {}
     cmd = "dssim/dssim " + uncomp + " " + comp
-    res["sim"] = subprocess.check_output(cmd, shell=True)
+    res["ssim"] = subprocess.check_output(cmd, shell=True)
     cmd = "compare -metric PSNR " + uncomp + " " + comp + " /dev/null 2>&1"
     res["psnr"] = subprocess.check_output(cmd, shell=True)
     cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
@@ -174,12 +174,16 @@ def run(alpha, beta):
     crti = compress("vase.rti", alpha, beta)
     ucrti = decompress(crti)
     res = measure(ucrti, 50.0, 50.0, alpha, beta)
-    print("Alpha =",alpha,"Beta =", beta)
-    print("SSIM =",res["sim"]),
-    print("PSNR =",res["psnr"]),
-    print("RMSE =",res["rmse"]),
-    print("Comp. Ratio =",res["comp"])
+    print("abJPEG", end=";")
+    print("vase.rti", end=";")
+    print(res["comp"], end=";")
+    print(res["psnr"].strip(), end=";")
+    print(res["rmse"].strip(), end=";")
+    print(res["ssim"].strip(), end=";")
+    print(alpha, end=";")
+    print(beta)
 
-for alpha in range(30,100,30):
-    for beta in range(30,100,30):
+print("Method;File;CompRatio;PSNR;RMSE;SSIM;Alpha;Beta")
+for alpha in range(5,100,10):
+    for beta in range(5,100,10):
         run(alpha, beta)
