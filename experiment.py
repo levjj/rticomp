@@ -165,7 +165,7 @@ def measure(ucrti, lightx, lighty, alpha, beta):
     res["psnr"] = subprocess.check_output(cmd, shell=True)
     cmd = "compare -metric RMSE " + uncomp + " " + comp + " /dev/null 2>&1"
     res["rmse"] = subprocess.check_output(cmd, shell=True)
-    res["osize"] = os.path.getsize("data/vase.rti")
+    res["osize"] = os.path.getsize("data/vase.rti").strip()
     res["csize"] = os.path.getsize("out/vase-comp.crti")
     res["comp"] = (res["osize"] + 0.0) / res["csize"]
     return res
